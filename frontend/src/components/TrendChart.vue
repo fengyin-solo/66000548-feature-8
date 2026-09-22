@@ -1,8 +1,8 @@
 <template>
-  <div class="panel"><h4>📉 窗口日志量趋势</h4><div ref="chart" class="chart"></div></div>
+  <div class="panel"><h4>📉 窗口日志量趋势<span v-if="store.readOnly" class="ro-badge">只读</span></h4><div ref="chart" class="chart" :class="{big:store.readOnly}"></div></div>
 </template>
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import * as echarts from 'echarts'
 import { useLogStore } from '../store/log'
 const store = useLogStore(); const chart = ref<HTMLDivElement>(); let inst: echarts.ECharts|null=null
@@ -21,6 +21,7 @@ function update() {
 }
 onMounted(()=>{if(chart.value){inst=echarts.init(chart.value);update()}})
 watch(()=>store.result,update)
+watch(()=>store.readOnly,async()=>{await nextTick();inst?.resize();update()})
 onUnmounted(()=>inst?.dispose())
 </script>
-<style scoped>.panel{background:#1e293b;border-radius:8px;padding:12px;border:1px solid #334155}.panel h4{color:#38bdf8;font-size:13px;margin-bottom:4px}.chart{width:100%;height:200px}</style>
+<style scoped>.panel{background:#1e293b;border-radius:8px;padding:12px;border:1px solid #334155}.panel h4{color:#38bdf8;font-size:13px;margin-bottom:4px}.chart{width:100%;height:200px}.chart.big{height:320px}</style>

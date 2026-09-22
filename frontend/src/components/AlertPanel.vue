@@ -1,6 +1,6 @@
 <template>
   <div class="panel">
-    <h4>🚨 告警列表</h4>
+    <h4>🚨 告警列表<span v-if="store.readOnly" class="ro-badge">只读</span></h4>
     <div v-if="!alerts.length" class="empty">暂无告警</div>
     <div v-for="a in alerts.slice(0,8)" :key="a.id" class="alert-row" :class="a.severity">
       <span class="a-sev" :class="a.severity">{{ a.severity.toUpperCase() }}</span>

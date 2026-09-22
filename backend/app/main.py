@@ -1,12 +1,23 @@
 import re, math, time, random
 import numpy as np
 from collections import defaultdict, Counter
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 app = FastAPI(title="Log Anomaly Detector")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+# 已保存的分析结果快照：越权请求一律 403，不得改动已有结果
+SAVED_RESULT = {"result": None, "savedBy": None, "savedAt": None}
+
+
+def guard_mutation(x_user_role: str = Header("admin"), x_read_only: str = Header("false")):
+    """改动入口守卫：只读访客账号或只读模式下的请求一律拒绝，已有结果保持不变。"""
+    if x_user_role == "viewer":
+        raise HTTPException(status_code=403, detail="只读访客账号无权执行改动操作，已有结果保持不变")
+    if x_read_only.lower() == "true":
+        raise HTTPException(status_code=403, detail="当前处于只读模式，改动入口已关闭，已有结果保持不变")
 
 LOG_TEMPLATES = {
     "nginx": {
@@ -75,7 +86,11 @@ class DetectRequest(BaseModel):
     query: str = ""
 
 
-@app.post("/api/generate")
+class SaveRequest(BaseModel):
+    result: dict
+
+
+@app.post("/api/generate", dependencies=[Depends(guard_mutation)])
 def generate_logs(req: GenerateRequest):
     tmpl = LOG_TEMPLATES.get(req.type, LOG_TEMPLATES["nginx"])
     logs = []
@@ -92,9 +107,22 @@ def generate_logs(req: GenerateRequest):
     return analyze_logs(logs, [], "")
 
 
-@app.post("/api/detect")
+@app.post("/api/detect", dependencies=[Depends(guard_mutation)])
 def detect_anomalies(req: DetectRequest):
     return analyze_logs(req.logs, req.rules, req.query)
+
+
+@app.post("/api/save", dependencies=[Depends(guard_mutation)])
+def save_result(req: SaveRequest, x_user_role: str = Header("admin")):
+    SAVED_RESULT["result"] = req.result
+    SAVED_RESULT["savedBy"] = x_user_role
+    SAVED_RESULT["savedAt"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    return {"ok": True, "savedBy": SAVED_RESULT["savedBy"], "savedAt": SAVED_RESULT["savedAt"]}
+
+
+@app.get("/api/save")
+def get_saved_result():
+    return SAVED_RESULT
 
 
 def analyze_logs(logs_data, rules, query):
