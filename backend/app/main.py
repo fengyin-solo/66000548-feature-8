@@ -1,12 +1,21 @@
 import re, math, time, random
 import numpy as np
 from collections import defaultdict, Counter
-from fastapi import FastAPI
+from typing import Optional
+from fastapi import FastAPI, Depends, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 app = FastAPI(title="Log Anomaly Detector")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+READONLY_DENY_MSG = "只读模式：当前为受控视图，生成/检测等改动操作已被禁用，已有结果不会被改动"
+
+
+def ensure_writable(x_view_mode: Optional[str] = Header(default=None)):
+    """只读模式下所有账号均为受控视图，变更类操作一律拒绝，越权调用不得改动已有结果。"""
+    if (x_view_mode or "").strip().lower() == "readonly":
+        raise HTTPException(status_code=403, detail=READONLY_DENY_MSG)
 
 LOG_TEMPLATES = {
     "nginx": {
@@ -75,7 +84,7 @@ class DetectRequest(BaseModel):
     query: str = ""
 
 
-@app.post("/api/generate")
+@app.post("/api/generate", dependencies=[Depends(ensure_writable)])
 def generate_logs(req: GenerateRequest):
     tmpl = LOG_TEMPLATES.get(req.type, LOG_TEMPLATES["nginx"])
     logs = []
@@ -92,7 +101,7 @@ def generate_logs(req: GenerateRequest):
     return analyze_logs(logs, [], "")
 
 
-@app.post("/api/detect")
+@app.post("/api/detect", dependencies=[Depends(ensure_writable)])
 def detect_anomalies(req: DetectRequest):
     return analyze_logs(req.logs, req.rules, req.query)
 

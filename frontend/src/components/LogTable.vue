@@ -2,7 +2,7 @@
   <div class="panel" style="height:100%">
     <h4>📋 日志流 ({{ store.result?.totalLogs || 0 }} 条)</h4>
     <div class="table-wrap">
-      <el-table :data="store.result?.logs||[]" size="small" max-height="400" stripe>
+      <el-table :data="store.result?.logs||[]" size="small" :max-height="store.readOnly ? 640 : 400" stripe>
         <el-table-column prop="id" label="#" width="50"/>
         <el-table-column prop="timestamp" label="时间" width="150"/>
         <el-table-column prop="level" label="级别" width="70">
